@@ -11,12 +11,11 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 AM_SILENT_RULES([yes])
 AM_MAINTAINER_MODE
 
-AM_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
 
 AC_USE_SYSTEM_EXTENSIONS
 
-dnl save $CFLAGS since AC_PROG_CC likes to insert "-g -O2"
-dnl if $CFLAGS is blank
+dnl save $CFLAGS since AC_PROG_CC likes to insert "-g -O2" if $CFLAGS is blank
 cflags_save="$CFLAGS"
 AC_PROG_CC
 CFLAGS="$cflags_save"
@@ -45,8 +44,6 @@ then
 fi
 
 PKG_CHECK_MODULES(AO, ao >= 0.8.0,,build_modplug123=no; AC_MSG_WARN(libao too old; >= 0.8.0 required))
-#ACX_PTHREAD(,build_modplug123=no; AC_MSG_WARN(POSIX threads missing))
-
 
 AC_TYPE_INT8_T
 AC_TYPE_UINT8_T
@@ -59,10 +56,7 @@ AC_TYPE_UINT64_T
 
 AC_CHECK_HEADERS([fcntl.h sys/ioctl.h sys/time.h ])
 
-
 AC_CONFIG_FILES([Makefile
           mpplay/Makefile
           mp123/Makefile])
 AC_OUTPUT
-
-
