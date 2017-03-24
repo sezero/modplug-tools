@@ -21,9 +21,6 @@ cflags_save="$CFLAGS"
 AC_PROG_CC
 CFLAGS="$cflags_save"
 
-AC_PROG_CXX
-AC_PROG_LIBTOOL
-
 dnl --------------------------------------------------
 dnl System checks
 dnl --------------------------------------------------
