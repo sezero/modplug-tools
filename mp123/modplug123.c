@@ -92,7 +92,7 @@ command line option handling
 #define BUF_SIZE 4096
 
 static struct termios stored_settings;
-int audio_fd, mixer_fd;
+/*int audio_fd, mixer_fd;*/
 unsigned char audio_buffer[BUF_SIZE];
 
 typedef struct {
@@ -288,7 +288,7 @@ int main(int argc, char* argv[])
     pollfds.fd = 0;             /* stdin */
     pollfds.events = POLLIN;    /* Wait for input */
 
-    if (argc==1) {
+    if (argc==1 || !nFiles) {
 	help(argv[0],1);
     }
 
@@ -298,21 +298,21 @@ int main(int argc, char* argv[])
     
     srand(time(NULL));
 
+/* -- Open driver -- */
+    if (default_driver == ao_driver_id("wav")) {
+	device = ao_open_file(default_driver, "output.wav", 1, &format, NULL /*no options*/);
+    } else {
+	device = ao_open_live(default_driver, &format, NULL /* no options */);
+    }
+    if (!device) {
+	fprintf(stderr, "Error opening device. (%s)\n", strerror(errno));
+	return 1;
+    }
+
 for (song=0; song<nFiles; song++) {
 
     char *filename = argv[fnOffset[song]];
 
-/* -- Open driver -- */
-    if (default_driver == ao_driver_id("wav")) {
-        device = ao_open_file(default_driver, "output.wav", 1, &format, NULL /*no options*/);
-    } else {
-        device = ao_open_live(default_driver, &format, NULL /* no options */);
-    }
-    if (device == NULL) {
- 	fprintf(stderr, "Error opening device. (%s)\n", filename);
-	fprintf(stderr, "ERROR: %i\n", errno);
-        return 1;
-    }
     printf("%s ",filename);
     printf("[%d/%d]",song+1,nFiles);
 
@@ -331,10 +331,10 @@ for (song=0; song<nFiles; song++) {
     ModPlug_SetSettings(&settings);
 
     f2 = ModPlug_Load(filedata, size);
+    free(filedata);/* no longer needed. */
     if (!f2) {
 	printf("could not load %s\n", filename);
-	close(audio_fd);
-	free(filedata); /* ? */
+	/*close(audio_fd);*/
     } else {
       songsplayed++;
 /*    settings.mFlags=MODPLUG_ENABLE_OVERSAMPLING | \
@@ -351,7 +351,6 @@ for (song=0; song<nFiles; song++) {
 //    settings.mBassRange   = 100; /* 10 - 100 hz */ 
 // [REV--DLY--] [SUR--DLY--] [BAS--RNG--]
 // [rev--dly--] [sur--dly--] [bas--rng--]
-
 
     set_keypress();
     strcpy(songname, ModPlug_GetName(f2));
@@ -370,7 +369,7 @@ for (song=0; song<nFiles; song++) {
     gettimeofday(&tvstart,NULL);
     tvptotal.tv_sec=tvptotal.tv_usec=0;
     mlen=1;
-    
+
     while(mlen!=0) {
 	if (mlen==0) { break; }
 
@@ -380,7 +379,7 @@ for (song=0; song<nFiles; song++) {
             if (mlen > 0 && ao_play(device, audio_buffer, mlen) == 0) {
 		perror("audio write");
 		exit(1);
-    	    }
+	    }
         }
         printf(status,tv.tv_sec-tvstart.tv_sec-tvptotal.tv_sec,tv.tv_usec/100000,format.rate,format.channels,settings.mBits/*,rev,revdly,sur,surdly,bas,basrng*/);
 	fflush(stdout);
@@ -427,13 +426,13 @@ for (song=0; song<nFiles; song++) {
 			    tvstart.tv_sec+=10;
 			}
 		    } /* backward 10" */
-		    
+
 		    /*
 		    if (buffer[0]=='i') {
 			printf("\n");
 		    } */
 
-/*
+		    /*
 		    if (buffer[0]=='a') {
 			rev++; settings.mReverbDepth=rev;
 			ModPlug_SetSettings(&settings);
@@ -482,8 +481,8 @@ for (song=0; song<nFiles; song++) {
 			basrng--; settings.mBassRange=basrng;
 			ModPlug_SetSettings(&settings);
 		    }
-*/
-		    
+		    */
+
 		    if (buffer[0]=='n') {
 			if (song<argc) { mlen=0; pause=0; }
 		    }
@@ -491,20 +490,21 @@ for (song=0; song<nFiles; song++) {
 		    if (buffer[0]=='N') {
 			if (song>1) { song-=2; mlen=0; pause=0; }
 		    }
-		    
+
 		    if (buffer[0]=='r') {
 			song=(int) ((float)(argc-1)*rand()/(RAND_MAX+1.0));
 			mlen=0; pause=0;
-//			ioctl(audio_fd,SNDCTL_DSP_RESET,0);
+			/*ioctl(audio_fd,SNDCTL_DSP_RESET,0);*/
 			/* printf("\n[%d?]\n",song+1); */
 		    }
-		    
+
 		    /*if (buffer[0]=='R') {
 			song=(int) ((float)(argc-1)*rand()/(RAND_MAX+1.0));
 			mlen=0; pause=0;
 		    }*/
-		    
-/*		    if (buffer[0]=='m') {
+
+		    /*
+		    if (buffer[0]=='m') {
 			// mono/stereo 
 			mono^=1;
 			if (mono) format.channels=1; else format.channels=2;
@@ -527,7 +527,7 @@ for (song=0; song<nFiles; song++) {
 			    memcpy(status+4,"play",4);
 			}
 		    } /* loop */
-		    
+
 		    if (buffer[0]=='p') {
 			pause^=1;
 			if (pause) {
@@ -542,20 +542,19 @@ for (song=0; song<nFiles; song++) {
 			    /* printf(status,tv.tv_sec-tvstart.tv_sec,tv.tv_usec/100000); */
 			}
 		    } /* pause */
-                }
-            }
-        }
+		}
+	    }
+	}
     }
     printf("\n");
 
     reset_keypress();
     ModPlug_Unload(f2);
-    ao_close(device);
-    fprintf(stderr, "Closing audio device.\n");
-    free(filedata);
     } /* valid module */
-    
 } /* for */
+
+    fprintf(stderr, "Closing audio device.\n");
+    ao_close(device);
     ao_shutdown();
 
     return 0;
