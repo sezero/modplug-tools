@@ -19,6 +19,9 @@ dnl save $CFLAGS since AC_PROG_CC likes to insert "-g -O2" if $CFLAGS is blank
 cflags_save="$CFLAGS"
 AC_PROG_CC
 CFLAGS="$cflags_save"
+if test $ac_cv_c_compiler_gnu = yes; then
+   CFLAGS="$CFLAGS -Wall"
+fi
 
 dnl --------------------------------------------------
 dnl System checks
