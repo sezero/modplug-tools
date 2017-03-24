@@ -86,14 +86,12 @@ command line option handling
 #include <termios.h>			/* needed to get terminal size */
 
 
-
 #define VERSION "0.5.3"
 
 #define BUF_SIZE 4096
 
 static struct termios stored_settings;
-/*int audio_fd, mixer_fd;*/
-unsigned char audio_buffer[BUF_SIZE];
+static char audio_buffer[BUF_SIZE];
 
 typedef struct {
 	int x, y;
@@ -109,9 +107,9 @@ static int get_term_size(int fd, term_size *t) {
 
 #ifdef TIOCGSIZE
     if (ioctl(fd,TIOCGSIZE,&win)) return 0;
-    if (t) { 
+    if (t) {
 	t->y=win.ts_lines;
-    	t->x=win.ts_cols;
+	t->x=win.ts_cols;
     }
 #elif defined TIOCGWINSZ
     if (ioctl(fd,TIOCGWINSZ,&win)) return 0;
@@ -148,7 +146,7 @@ void reset_keypress(void)
     return;
 }
 
-void versioninfo()
+void versioninfo(void)
 {
 	printf("\nmodplug123 - libAO based console player - Konstanty Bialkowski");
 	printf("Based on modplugplay - Copyright (C) 2003 Gürkan Sengün\n");
@@ -171,12 +169,12 @@ void help(char *s, int exitcode)
 	printf("  -l   start in looping mode\n");
 	printf("  -ao <audio output driver> use specific libAO output driver\n");
 	printf("       eg. -ao wav (file writing to output.wav)\n");
-/*
+	/*
 	printf("  -r   randomize play sequence\n");
 	printf("  -c   write to console instead of %s\n",DEVICE_NAME);
 	printf("  -i   use stdin for file input\n");
 	printf("  -q   be quiet\n");
-*/	
+	*/
 	exit(exitcode);
 }
 
@@ -215,19 +213,36 @@ int main(int argc, char* argv[])
     char notpaus[4];
 
     int loop=0; // kontest
-    
+
     int songsplayed = 0;
 
     int nFiles = 0, fnOffset[100];
     int i;
 
+    char buffer[128];
+    int result, nread;
+    struct pollfd pollfds;
+    int timeout = 1;            /* Timeout in msec. */
+    int pause=0;
+    int song;
+
+    /*
+    // [rev--dly--] [sur--dly--] [bas--rng--]
+    int rev=0;    // a
+    int revdly=0; // s
+    int sur=0;    // d
+    int surdly=0; // y
+    int bas=0;    // x
+    int basrng=0; // c
+    */
+
+    int default_driver;
+    ao_device *device;
+    ao_sample_format format = {0};
+
     ModPlug_Settings settings;
     ModPlug_GetSettings(&settings);
 
-    ao_device *device;
-    ao_sample_format format = {0};
-    int default_driver;
-    
     ao_initialize();
     default_driver = ao_default_driver_id();
 
@@ -267,23 +282,6 @@ int main(int argc, char* argv[])
     format.byte_format = AO_FMT_LITTLE;
 //	printf("Default driver = %i\n", default_driver);
 
-    char buffer[128];
-    int result, nread;
-    struct pollfd pollfds;
-    int timeout = 1;            /* Timeout in msec. */
-    int pause=0;
-    int mono=0;
-    int bits=0;
-    int song;
-
-    // [rev--dly--] [sur--dly--] [bas--rng--]
-    int rev=0;    // a
-    int revdly=0; // s
-    int sur=0;    // d
-    int surdly=0; // y
-    int bas=0;    // x
-    int basrng=0; // c
-
     /* Initialize pollfds; we're looking at input, stdin */
     pollfds.fd = 0;             /* stdin */
     pollfds.events = POLLIN;    /* Wait for input */
@@ -295,7 +293,7 @@ int main(int argc, char* argv[])
     if (!get_term_size(STDIN_FILENO,&terminal)) {
 	fprintf(stderr,"warning: failed to get terminal size\n");
     }
-    
+
     srand(time(NULL));
 
 /* -- Open driver -- */
@@ -309,7 +307,7 @@ int main(int argc, char* argv[])
 	return 1;
     }
 
-for (song=0; song<nFiles; song++) {
+  for (song=0; song<nFiles; song++) {
 
     char *filename = argv[fnOffset[song]];
 
@@ -334,7 +332,6 @@ for (song=0; song<nFiles; song++) {
     free(filedata);/* no longer needed. */
     if (!f2) {
 	printf("could not load %s\n", filename);
-	/*close(audio_fd);*/
     } else {
       songsplayed++;
 /*    settings.mFlags=MODPLUG_ENABLE_OVERSAMPLING | \
@@ -494,7 +491,6 @@ for (song=0; song<nFiles; song++) {
 		    if (buffer[0]=='r') {
 			song=(int) ((float)(argc-1)*rand()/(RAND_MAX+1.0));
 			mlen=0; pause=0;
-			/*ioctl(audio_fd,SNDCTL_DSP_RESET,0);*/
 			/* printf("\n[%d?]\n",song+1); */
 		    }
 
@@ -503,22 +499,6 @@ for (song=0; song<nFiles; song++) {
 			mlen=0; pause=0;
 		    }*/
 
-		    /*
-		    if (buffer[0]=='m') {
-			// mono/stereo 
-			mono^=1;
-			if (mono) format.channels=1; else format.channels=2;
-			ioctl(audio_fd,SNDCTL_DSP_RESET,0);
-			if (ioctl(audio_fd, SNDCTL_DSP_CHANNELS, &channels) == -1) {
-			    perror("SNDCTL_DSP_CHANNELS");
-			    exit(1);
-			}
-			if (mono) settings.mChannels=1; else settings.mChannels=2;
-			ModPlug_SetSettings(&settings);
-			f2=ModPlug_Load(d,size);
-			ModPlug_Seek(f2,(tv.tv_sec-tvstart.tv_sec-tvptotal.tv_sec)*1000+10000);
-		    }
-		    */
 		    if (buffer[0]=='l') {
 			loop^=1;
 			if (loop) {
@@ -551,7 +531,8 @@ for (song=0; song<nFiles; song++) {
     reset_keypress();
     ModPlug_Unload(f2);
     } /* valid module */
-} /* for */
+
+  } /* for */
 
     fprintf(stderr, "Closing audio device.\n");
     ao_close(device);
@@ -559,4 +540,3 @@ for (song=0; song<nFiles; song++) {
 
     return 0;
 }
-

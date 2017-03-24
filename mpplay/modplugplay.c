@@ -92,8 +92,8 @@ command line option handling
 #define DEVICE_NAME "/dev/dsp"
 
 static struct termios stored_settings;
-int audio_fd, mixer_fd;
-unsigned char audio_buffer[BUF_SIZE];
+static int audio_fd, mixer_fd;
+static unsigned char audio_buffer[BUF_SIZE];
 
 typedef struct {
 	int x, y;
@@ -176,36 +176,14 @@ void help(char *s, int exitcode)
 	exit(exitcode);
 }
 
-int get_byteorder() 
+int get_byteorder(void)
 {
-#define sz sizeof(int)
-    int ival;
-    int format;
-    char s[sz];
-    char t[sz];
-    int i, lit, big;
-
-    for (i=0; i<sz; i++) s[i] = i;
-    ival = *(int *)s;
-    big = lit = 0;
-
-    for (i=0; i<sz; i++) {
-        char c = ival&0xff;
-        ival >>= 8;
-        if (s[i] == c) lit++;
-        if (s[sz-i-1] == c) big++;
-        t[i] = c;
-    }
-    if (lit == sz && big == 0) {
-        /*printf("little endian\n");*/
-	format = AFMT_S16_LE;
-    } else if (big == sz && lit == 0) {
-        /*printf("big endian\n");*/
-	format = AFMT_S16_BE;
-    } else {
-	format = -1;
-    }
-    return(format);
+    int i = 0x12345678;
+    if (*(char *)&i == 0x12)
+        return AFMT_S16_BE;
+    if (*(char *)&i == 0x78)
+        return AFMT_S16_LE;
+    return -1;
 }
 
 char *getFileData(char *filename, long *size)
@@ -227,11 +205,11 @@ char *getFileData(char *filename, long *size)
     return(data);
 }
 
-int getpcmvol()
+int getpcmvol(void)
 /* get absolute pcm volume, 0 - 100 (for left+right) */
 {
     int vol;
-    
+
     if ((mixer_fd=open("/dev/mixer", O_RDONLY | O_NONBLOCK, 0)) == -1) {
 	printf("can't open mixer\n");
 	exit(1);
@@ -244,7 +222,7 @@ int getpcmvol()
     return(vol);
 }
 
-int setrelpcmvol(int newvol)
+void setrelpcmvol(int newvol)
 /* set relative pcm volume, -100 .. 100 */
 {
     int currentvol=getpcmvol();
@@ -276,8 +254,7 @@ int main(int argc, char* argv[])
     char status[161];
     char songname[41];
     char notpaus[4];
-    
-    int vol=getpcmvol();
+
     int songsplayed = 0;
 
     ModPlug_Settings settings;
@@ -297,6 +274,7 @@ int main(int argc, char* argv[])
     int bits=0;
     int song;
 
+    /*
     // [rev--dly--] [sur--dly--] [bas--rng--]
     int rev=0;    // a
     int revdly=0; // s
@@ -304,6 +282,7 @@ int main(int argc, char* argv[])
     int surdly=0; // y
     int bas=0;    // x
     int basrng=0; // c
+    */
 
     if ((format = get_byteorder()) == -1) {
         return 1;
@@ -320,10 +299,10 @@ int main(int argc, char* argv[])
     if (!get_term_size(STDIN_FILENO,&terminal)) {
 	fprintf(stderr,"warning: failed to get terminal size\n");
     }
-    
+
     srand(time(NULL));
 
-for (song=1; song<argc; song++) {
+  for (song=1; song<argc; song++) {
 
 /* check if arguments need to be parsed */
     if (argv[song][0] == '-') {
@@ -345,8 +324,8 @@ for (song=1; song<argc; song++) {
 	  exit(0);
 	}
         continue;
-       }
       }
+    }
 
     /* O_NONBLOCK gave me the problem 
     that after about 5 seconds writing audiobuffer to DEVICE_NAME
@@ -438,7 +417,7 @@ for (song=1; song<argc; song++) {
     gettimeofday(&tvstart,NULL);
     tvptotal.tv_sec=tvptotal.tv_usec=0;
     mlen=1;
-    
+
     while(mlen!=0) {
 	if (mlen==0) { break; }
 
@@ -448,7 +427,7 @@ for (song=1; song<argc; song++) {
 	    if ((len=write(audio_fd,audio_buffer,mlen)) == -1) {
 		perror("audio write");
 		exit(1);
-    	    }
+	    }
 	    /*printf("%d %d\n",mlen,len);*/
         }
 	printf(status,tv.tv_sec-tvstart.tv_sec-tvptotal.tv_sec,tv.tv_usec/100000,speed,channels,settings.mBits/*,rev,revdly,sur,surdly,bas,basrng*/);
@@ -498,7 +477,7 @@ for (song=1; song<argc; song++) {
 			    tvstart.tv_sec+=10;
 			}
 		    } /* backward 10" */
-		    
+
 		    /*
 		    if (buffer[0]=='i') {
 			printf("\n");
@@ -554,7 +533,7 @@ for (song=1; song<argc; song++) {
 			ModPlug_SetSettings(&settings);
 		    }
 */
-		    
+
 		    if (buffer[0]=='n') {
 			if (song<argc) { mlen=0; pause=0; ioctl(audio_fd,SNDCTL_DSP_RESET,0); }
 		    }
@@ -574,7 +553,7 @@ for (song=1; song<argc; song++) {
 			song=(int) ((float)(argc-1)*rand()/(RAND_MAX+1.0));
 			mlen=0; pause=0;
 		    }*/
-		    
+
 		    if (buffer[0]=='1') {
 			/* 11025 hertz */
 			speed=11025;
@@ -588,7 +567,7 @@ for (song=1; song<argc; song++) {
 			f2=ModPlug_Load(d,size);
 			ModPlug_Seek(f2,(tv.tv_sec-tvstart.tv_sec-tvptotal.tv_sec)*1000+10000);
 		    }
-		    
+
 		    if (buffer[0]=='2') {
 			/* 22050 hertz */
 			speed=22050;
@@ -602,7 +581,7 @@ for (song=1; song<argc; song++) {
 			f2=ModPlug_Load(d,size);
 			ModPlug_Seek(f2,(tv.tv_sec-tvstart.tv_sec-tvptotal.tv_sec)*1000+10000);
 		    }
-		    
+
 		    if (buffer[0]=='4') {
 			/* 44100 hertz */
 			speed=44100;
@@ -655,7 +634,7 @@ for (song=1; song<argc; song++) {
 			f2=ModPlug_Load(d,size);
 			ModPlug_Seek(f2,(tv.tv_sec-tvstart.tv_sec-tvptotal.tv_sec)*1000+10000);
 		    }
-		    
+
 		    if (buffer[0]=='l') {
 			loop^=1;
 			if (loop) {
@@ -664,7 +643,7 @@ for (song=1; song<argc; song++) {
 			    memcpy(status+4,"play",4);
 			}
 		    } /* loop */
-		    
+
 		    if (buffer[0]=='+') {
 			setrelpcmvol(4);
 		    }
@@ -699,9 +678,8 @@ for (song=1; song<argc; song++) {
     close(audio_fd);
     free(d);
     } /* valid module */
-    
-} /* for */
 
-    return 0;
+  } /* for */
+
+  return 0;
 }
-
