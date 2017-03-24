@@ -1,24 +1,17 @@
-AC_INIT
-AC_CONFIG_SRCDIR([Makefile.am])
-
-AC_CANONICAL_HOST
-AC_CANONICAL_TARGET
-
 AC_PREREQ(2.53)
-
+AC_INIT
+AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([modplugtools],[0.5.3])
-m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
-AM_SILENT_RULES([yes])
+AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_SRCDIR([mp123/modplug123.c])
 AM_MAINTAINER_MODE
 
-AC_CONFIG_HEADERS([config.h])
-
-AC_USE_SYSTEM_EXTENSIONS
+AC_CANONICAL_HOST
 
 dnl save $CFLAGS since AC_PROG_CC likes to insert "-g -O2" if $CFLAGS is blank
-cflags_save="$CFLAGS"
+dnl cflags_save="$CFLAGS"
 AC_PROG_CC
-CFLAGS="$cflags_save"
+dnl CFLAGS="$cflags_save"
 if test $ac_cv_c_compiler_gnu = yes; then
    CFLAGS="$CFLAGS -Wall"
 fi
@@ -27,39 +20,23 @@ dnl --------------------------------------------------
 dnl System checks
 dnl --------------------------------------------------
 
+AC_USE_SYSTEM_EXTENSIONS
 AC_SYS_LARGEFILE
 AC_C_BIGENDIAN
 
-HAVE_MODPLUG=no
-dnl first check through pkg-config
-dnl check for pkg-config itself so we don't try the m4 macro without pkg-config
-AC_CHECK_PROG(HAVE_PKG_CONFIG, pkg-config, yes)
-if test "x$HAVE_PKG_CONFIG" = "xyes"
-then
- PKG_CHECK_MODULES(LIBMODPLUG, libmodplug >= 0.8.8, HAVE_MODPLUG=yes, HAVE_MODPLUG=no)
- AC_SUBST(LIBMODPLUG_CFLAGS)
- AC_SUBST(LIBMODPLUG_LIBS)
+PKG_CHECK_MODULES(LIBMODPLUG, libmodplug >= 0.8.8, have_modplug=yes, have_modplug=no)
+if test "x$have_modplug" = "xno"; then
+	AC_MSG_ERROR(libmodplug >= 0.8.8 required)
 fi
 
-if test "x$HAVE_MODPLUG" = "xno"
-then
-	AC_MSG_ERROR(libmodplug >= 0.8.8 required !)
-fi
-
-PKG_CHECK_MODULES(AO, ao >= 0.8.0,,build_modplug123=no; AC_MSG_WARN(libao too old; >= 0.8.0 required))
-
-AC_TYPE_INT8_T
-AC_TYPE_UINT8_T
-AC_TYPE_INT16_T
-AC_TYPE_UINT16_T
-AC_TYPE_INT32_T
-AC_TYPE_UINT32_T
-AC_TYPE_INT64_T
-AC_TYPE_UINT64_T
+PKG_CHECK_MODULES(AO, ao >= 0.8.0,,[build_modplug123=no;
+		AC_MSG_WARN(libao too old; >= 0.8.0 required)]
+)
 
 AC_CHECK_HEADERS([fcntl.h sys/ioctl.h sys/time.h ])
 
 AC_CONFIG_FILES([Makefile
           mpplay/Makefile
           mp123/Makefile])
+AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT
